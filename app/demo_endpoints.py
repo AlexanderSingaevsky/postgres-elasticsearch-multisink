@@ -5,6 +5,7 @@ from pathlib import Path
 
 import asyncpg
 from elasticsearch import AsyncElasticsearch
+from elasticsearch import ApiError
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
@@ -45,10 +46,25 @@ async def setup(
     sql = _PG_SCHEMA_PATH.read_text(encoding="utf-8")
     await conn.execute(sql)
 
-    exists = await es.indices.exists(index=ES_INDEX_NAME)
-    if not exists:
-        body = json.loads(_ES_INDEX_PATH.read_text(encoding="utf-8"))
+    # Avoid HEAD-based "exists" calls here; just try to create and ignore
+    # "already exists" (400) for an idempotent setup.
+    body = json.loads(_ES_INDEX_PATH.read_text(encoding="utf-8"))
+    try:
         await es.indices.create(index=ES_INDEX_NAME, **body)
+    except ApiError as e:
+        # resource_already_exists_exception is returned as 400 in ES.
+        if getattr(e, "meta", None) is not None and e.meta.status == 400:
+            # If it already exists, that's fine; otherwise re-raise.
+            err = getattr(e, "body", None) or getattr(e, "error", None)
+            err_type = None
+            if isinstance(err, dict):
+                err_type = (err.get("error") or {}).get("type") or err.get("type")
+            if err_type == "resource_already_exists_exception":
+                pass
+            else:
+                raise
+        else:
+            raise
 
     return {"status": "ok"}
 

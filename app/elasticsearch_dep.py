@@ -13,16 +13,21 @@ def _elasticsearch_url() -> str:
 
 def _elasticsearch_api_key() -> str | None:
     # If set, should look like "id:api_key" (Elastic format).
-    return os.getenv("ELASTICSEARCH_API_KEY")
+    value = os.getenv("ELASTICSEARCH_API_KEY")
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
 
 
 async def init_es_client(app_state: object) -> None:
     """Create and store a shared AsyncElasticsearch client on app.state."""
     api_key = _elasticsearch_api_key()
-    client = AsyncElasticsearch(
-        hosts=[_elasticsearch_url()],
-        api_key=api_key,
-    )
+    kwargs: dict = {"hosts": [_elasticsearch_url()]}
+    # Important: don't pass `api_key=None` — that can result in a malformed Authorization header.
+    if api_key is not None:
+        kwargs["api_key"] = api_key
+    client = AsyncElasticsearch(**kwargs)
     setattr(app_state, "es", client)
 
 
