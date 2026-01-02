@@ -1,0 +1,81 @@
+services:
+  postgres_items:
+    image: postgres:16-alpine
+    container_name: postgres_items
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_ITEMS_DB:-items}
+    ports:
+      - "${POSTGRES_ITEMS_PORT:-5432}:5432"
+    volumes:
+      - pgdata_items:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_ITEMS_DB:-items}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  postgres_stores:
+    image: postgres:16-alpine
+    container_name: postgres_stores
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_STORES_DB:-stores}
+    ports:
+      - "${POSTGRES_STORES_PORT:-5433}:5432"
+    volumes:
+      - pgdata_stores:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_STORES_DB:-stores}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    container_name: elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9200 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build:
+      context: .
+    container_name: multisink_app
+    environment:
+      # Current app code uses POSTGRES_DSN; this points it at the "items" DB.
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql://postgres:postgres@postgres_items:5432/items}
+
+      # Handy for future multi-db wiring:
+      POSTGRES_ITEMS_DSN: ${POSTGRES_ITEMS_DSN:-postgresql://postgres:postgres@postgres_items:5432/items}
+      POSTGRES_STORES_DSN: ${POSTGRES_STORES_DSN:-postgresql://postgres:postgres@postgres_stores:5432/stores}
+
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres_items:
+        condition: service_healthy
+      postgres_stores:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+volumes:
+  pgdata_items:
+  pgdata_stores:
+  esdata:
+
+

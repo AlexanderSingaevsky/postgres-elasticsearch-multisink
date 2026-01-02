@@ -1,0 +1,6 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+asyncpg>=0.29
+elasticsearch[async]>=8.12
+
+
