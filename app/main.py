@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from app.elasticsearch_dep import close_es_client, init_es_client
 from app.postgres_dep import close_pg_pool, init_pg_pool
+from app.demo_endpoints import router as demo_router
 
 
 @asynccontextmanager
@@ -20,6 +21,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="postgres-elasticsearch-multisink", lifespan=lifespan)
+
+app.include_router(demo_router)
 
 
 @app.get("/", tags=["meta"])

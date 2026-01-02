@@ -1,0 +1,19 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "kind": { "type": "keyword" },
+      "id": { "type": "long" },
+      "name": { "type": "text" },
+      "description": { "type": "text" },
+      "price_cents": { "type": "integer" },
+      "created_at": { "type": "date" }
+    }
+  }
+}
+
+
