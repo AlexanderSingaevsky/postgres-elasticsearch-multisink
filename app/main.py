@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from elasticsearch import AsyncElasticsearch
+from fastapi import Depends, FastAPI, HTTPException
 
-from app.elasticsearch_dep import close_es_client, init_es_client
+from app.elasticsearch_dep import close_es_client, get_es, init_es_client
 from app.postgres_dep import close_pg_pool, init_pg_pool
 from app.demo_endpoints import router as demo_router
 
@@ -33,6 +34,20 @@ def root() -> dict[str, str]:
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, str]:
     return {"status": "healthy"}
+
+
+@app.get("/health/elasticsearch", tags=["meta"])
+async def health_elasticsearch(es: AsyncElasticsearch = Depends(get_es)) -> dict:
+    try:
+        info = await es.info()
+        return {
+            "status": "healthy",
+            "cluster_name": info.get("cluster_name"),
+            "cluster_uuid": info.get("cluster_uuid"),
+            "version": (info.get("version") or {}).get("number"),
+        }
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"Elasticsearch unavailable: {e!s}") from e
 
 
 if __name__ == "__main__":
